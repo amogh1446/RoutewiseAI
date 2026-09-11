@@ -1,22 +1,24 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import { healthRouter } from './api/health.js';
+// =============================================================
+// RouteWise — Server Entry Point
+// =============================================================
 
-// Load environment variables
-dotenv.config();
+import './env.js';
+import { app } from './app.js';
+import { verifyDatabase } from './db/index.js';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+async function start(): Promise<void> {
+  // Verify database connectivity on startup (non-blocking)
+  await verifyDatabase();
 
-// Routes
-app.use('/api/health', healthRouter);
+  app.listen(PORT, () => {
+    console.log(`[Server] RouteWise backend running on http://localhost:${PORT}`);
+    console.log(`[Server] API base: http://localhost:${PORT}/api/v1`);
+  });
+}
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+start().catch((err) => {
+  console.error('[Server] Failed to start:', err);
+  process.exit(1);
 });
