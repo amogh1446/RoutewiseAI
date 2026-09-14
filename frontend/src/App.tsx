@@ -29,6 +29,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('landing');
   const [formData, setFormData] = useState<FormData | null>(null);
   const [routeData, setRouteData] = useState<RouteResponse | null>(null);
+  const [pois, setPois] = useState<import('./services/api').POI[]>([]);
   const [selectedDay, setSelectedDay] = useState(1);
 
   const navigate = (s: Screen) => {
@@ -59,8 +60,9 @@ export default function App() {
       {screen === 'loading' && (
         <LoadingScreen
           formData={formData}
-          onDone={(route) => {
+          onDone={(route, discoveredPois) => {
             setRouteData(route);
+            if (discoveredPois) setPois(discoveredPois);
             navigate('overview');
           }}
         />
@@ -70,6 +72,7 @@ export default function App() {
         <TripOverview
           formData={formData}
           routeData={routeData}
+          pois={pois}
           onHome={goHome}
           onPlanNew={planNew}
           onDayClick={(d) => { setSelectedDay(d); navigate('day-detail'); }}

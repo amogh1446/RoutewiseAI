@@ -94,3 +94,18 @@ export interface RouteResponse {
 export async function fetchRoute(startLat: number, startLng: number, endLat: number, endLng: number, vehicle: string = 'car'): Promise<RouteResponse> {
   return apiFetch<RouteResponse>(`/route?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&vehicle=${vehicle}`);
 }
+
+// ── POI Discovery ──────────────────────────────────────────
+
+export interface POI {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  category: string;
+}
+
+export async function fetchPOIs(startLat: number, startLng: number, endLat: number, endLng: number, interests: string[]): Promise<POI[]> {
+  const interestsQuery = interests.length > 0 ? interests.join(',') : 'attraction';
+  return apiFetch<POI[]>(`/pois?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&interests=${encodeURIComponent(interestsQuery)}`);
+}

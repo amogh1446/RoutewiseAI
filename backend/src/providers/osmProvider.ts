@@ -11,7 +11,8 @@ import type {
   GeoProvider, 
   GeocodeRequest, GeocodeResult, 
   RouteRequest, RouteResult,
-  PlacesRequest, PlaceResult
+  PlacesRequest, PlaceResult,
+  CorridorRequest
 } from './interfaces.js';
 import type { POICategory } from '../utils/types.js';
 
@@ -156,6 +157,83 @@ export class OSMProvider implements GeoProvider {
         lat: el.lat,
         lng: el.lon,
         category: req.category,
+        address: el.tags['addr:street'] || el.tags['addr:city'] || null
+      }));
+  }
+
+  private mapCategoriesToOverpass(categories: string[]): string[] {
+    const filters: string[] = [];
+    for (const cat of categories) {
+      switch (cat.toLowerCase()) {
+        case 'nature': filters.push('["leisure"="nature_reserve"]'); break;
+        case 'waterfalls': filters.push('["waterway"="waterfall"]'); break;
+        case 'viewpoints': filters.push('["tourism"="viewpoint"]'); break;
+        case 'temples': filters.push('["amenity"="place_of_worship"]["religion"="hindu"]'); break;
+        case 'forts': filters.push('["historic"="fort"]'); break;
+        case 'beaches': filters.push('["natural"="beach"]'); break;
+        case 'wildlife': filters.push('["tourism"="zoo"]'); break;
+        case 'culture':
+        case 'history':
+        case 'culture/history': filters.push('["historic"]'); break;
+        case 'food': filters.push('["amenity"~"restaurant|cafe|fast_food"]'); break;
+        case 'photography': filters.push('["tourism"~"viewpoint|artwork"]'); break;
+        case 'attraction': filters.push('["tourism"~"attraction|museum"]'); break;
+        default: filters.push('["tourism"="attraction"]'); break;
+      }
+    }
+    return [...new Set(filters)]; // Deduplicate
+  }
+
+  async searchCorridor(req: CorridorRequest): Promise<PlaceResult[]> {
+    const radius = Math.min(req.radius_meters, 20000); // Cap at 20km
+    
+    // Sample coordinates from route_geometry (limit to ~25 points to avoid huge Overpass query)
+    const coords = req.route_geometry.coordinates;
+    if (!coords || coords.length === 0) return [];
+    
+    const sampleRate = Math.max(1, Math.floor(coords.length / 25));
+    const sampled = coords.filter((_: any, i: number) => i % sampleRate === 0);
+    // Overpass expects lat,lon
+    const aroundStr = sampled.map((c: any) => `${c[1]},${c[0]}`).join(',');
+    
+    const filters = this.mapCategoriesToOverpass(req.categories);
+    if (filters.length === 0) filters.push('["tourism"="attraction"]');
+
+    // Build union of nodes
+    const statements = filters.map(f => `node(around:${radius},${aroundStr})${f};`).join('\n        ');
+    
+    const query = `[out:json][timeout:25];
+      (
+        ${statements}
+      );
+      out center 50;`; // Limit to 50 results
+
+    const url = 'https://overpass-api.de/api/interpreter';
+    
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 
+        'User-Agent': this.userAgent,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `data=${encodeURIComponent(query)}`
+    });
+
+    if (!res.ok) {
+      throw new Error(`Overpass API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json() as any;
+    const elements = data.elements || [];
+
+    return elements
+      .filter((el: any) => el.tags && el.tags.name)
+      .map((el: any) => ({
+        place_id: `osm-node-${el.id}`,
+        name: el.tags.name,
+        lat: el.lat,
+        lng: el.lon,
+        category: (req.categories[0] || 'attraction') as any, // Simple fallback for MVP
         address: el.tags['addr:street'] || el.tags['addr:city'] || null
       }));
   }

@@ -75,6 +75,7 @@ const tripDays = [
 export default function TripOverview({
   formData,
   routeData,
+  pois = [],
   onHome,
   onPlanNew,
   onDayClick,
@@ -83,13 +84,14 @@ export default function TripOverview({
 }: {
   formData: FormData | null;
   routeData?: RouteResponse | null;
+  pois?: import('../services/api').POI[];
   onHome: () => void;
   onPlanNew: () => void;
   onDayClick: (day: number) => void;
   onAdjust: () => void;
   onChecklist: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'itinerary' | 'warnings'>('itinerary');
+  const [activeTab, setActiveTab] = useState<'itinerary' | 'warnings' | 'places'>('itinerary');
 
   const from = formData?.start?.name ?? 'Bengaluru';
   const to = formData?.destination?.name ?? 'Ooty';
@@ -101,7 +103,14 @@ export default function TripOverview({
 
   const mapMarkers: MarkerData[] = routeData ? [
     { id: 'start', type: 'start', label: from, lat: routeData.start.lat, lng: routeData.start.lng },
-    { id: 'end', type: 'destination', label: to, lat: routeData.end.lat, lng: routeData.end.lng }
+    { id: 'end', type: 'destination', label: to, lat: routeData.end.lat, lng: routeData.end.lng },
+    ...pois.map(p => ({
+      id: p.id,
+      type: 'stop' as const,
+      label: p.name,
+      lat: p.lat,
+      lng: p.lng
+    }))
   ] : [];
 
   return (
@@ -186,7 +195,7 @@ export default function TripOverview({
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #DDD7CC', marginBottom: 24 }}>
-            {(['itinerary', 'warnings'] as const).map(t => (
+            {(['itinerary', 'places', 'warnings'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
@@ -203,10 +212,15 @@ export default function TripOverview({
                   textTransform: 'capitalize',
                 }}
               >
-                {t}
+                {t === 'places' ? 'Discovered Places' : t}
                 {t === 'warnings' && (
                   <span style={{ marginLeft: 6, background: '#FDF3E3', color: '#C17B2E', borderRadius: 100, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
                     3
+                  </span>
+                )}
+                {t === 'places' && pois.length > 0 && (
+                  <span style={{ marginLeft: 6, background: '#EBF4EE', color: '#2D5A3D', borderRadius: 100, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                    {pois.length}
                   </span>
                 )}
               </button>
@@ -218,6 +232,28 @@ export default function TripOverview({
               {tripDays.slice(0, days).map(d => (
                 <DayCard key={d.day} day={d} onClick={() => onDayClick(d.day)} />
               ))}
+            </div>
+          )}
+
+          {activeTab === 'places' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {pois.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', background: '#FFFFFF', borderRadius: 12, border: '1px solid #DDD7CC' }}>
+                  <p style={{ color: '#6B6358', fontSize: 14 }}>No places discovered along this route for your selected interests.</p>
+                </div>
+              ) : (
+                pois.map((poi, idx) => (
+                  <div key={poi.id} style={{ display: 'flex', alignItems: 'center', gap: 16, background: '#FFFFFF', padding: '16px', borderRadius: 12, border: '1px solid #DDD7CC' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#EBF4EE', color: '#2D5A3D', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#1A1714' }}>{poi.name}</h4>
+                      <p style={{ margin: 0, fontSize: 13, color: '#6B6358', textTransform: 'capitalize' }}>{poi.category}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 

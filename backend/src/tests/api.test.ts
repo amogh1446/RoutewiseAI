@@ -298,6 +298,98 @@ describe('RouteWise API', async () => {
     });
   });
 
+  // ── POI Discovery ─────────────────────────────────────
+
+  describe('GET /api/v1/pois', () => {
+    it('returns 400 for missing coordinates', async () => {
+      const { status, body } = await get('/api/v1/pois?startLat=12.9');
+      assert.equal(status, 400);
+      assert.equal(body.success, false);
+      const error = body.error as Record<string, unknown>;
+      assert.equal(error.code, 'INVALID_QUERY');
+    });
+
+    it('returns results for valid route corridor with mocked fetch', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          const urlStr = url.toString();
+          // Mock OSRM Route
+          if (urlStr.includes('router.project-osrm.org')) {
+            return {
+              ok: true,
+              json: async () => ({
+                code: 'Ok',
+                routes: [
+                  {
+                    distance: 145000,
+                    duration: 12000,
+                    geometry: { type: 'LineString', coordinates: [[77.5, 12.9], [76.6, 12.3]] }
+                  }
+                ]
+              })
+            } as Response;
+          }
+          // Mock Overpass
+          if (urlStr.includes('overpass-api.de')) {
+            return {
+              ok: true,
+              json: async () => ({
+                elements: [
+                  {
+                    id: 12345,
+                    lat: 12.5,
+                    lon: 77.0,
+                    tags: { name: 'Mock Waterfall', waterway: 'waterfall' }
+                  }
+                ]
+              })
+            } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/pois?startLat=12.9&startLng=77.5&endLat=12.3&endLng=76.6&interests=waterfalls');
+        assert.equal(status, 200);
+        assert.equal(body.success, true);
+        const data = body.data as any[];
+        // Returns the mock waterfall
+        assert.equal(data.length, 1);
+        assert.equal(data[0].name, 'Mock Waterfall');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('returns 500 when Overpass fails', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          const urlStr = url.toString();
+          if (urlStr.includes('router.project-osrm.org')) {
+            return {
+              ok: true,
+              json: async () => ({
+                code: 'Ok',
+                routes: [{ distance: 100, duration: 100, geometry: { type: 'LineString', coordinates: [[77.5, 12.9], [76.6, 12.3]] } }]
+              })
+            } as Response;
+          }
+          if (urlStr.includes('overpass-api.de')) {
+            return { ok: false, status: 500, statusText: 'Internal Server Error' } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/pois?startLat=12.9&startLng=77.5&endLat=12.3&endLng=76.6');
+        assert.equal(status, 500);
+        assert.equal(body.success, false);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
   // ── 404 Handling ──────────────────────────────────────
 
   describe('404 Handling', () => {

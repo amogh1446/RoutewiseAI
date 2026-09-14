@@ -61,8 +61,15 @@ export interface PlaceResult {
   address: string | null;
 }
 
+export interface CorridorRequest {
+  route_geometry: { coordinates: [number, number][] }; // GeoJSON LineString
+  radius_meters: number;
+  categories: POICategory[] | string[];
+}
+
 export interface PlacesProvider {
   searchNearby(req: PlacesRequest): Promise<PlaceResult[]>;
+  searchCorridor(req: CorridorRequest): Promise<PlaceResult[]>;
 }
 
 // ── Combined Provider ──────────────────────────────────────

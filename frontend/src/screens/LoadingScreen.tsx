@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import type { FormData } from './PlannerForm';
-import { fetchRoute, RouteResponse } from '../services/api';
+import { fetchRoute, fetchPOIs, RouteResponse, POI } from '../services/api';
 
 const stages = [
   { label: 'Checking trip feasibility', detail: 'Verifying route distances and driving time limits' },
@@ -17,7 +17,7 @@ const stages = [
   { label: 'Building your itinerary', detail: 'Assembling a day-by-day plan with realistic timing' },
 ];
 
-export default function LoadingScreen({ formData, onDone }: { formData: FormData | null; onDone: (route: RouteResponse | null) => void }) {
+export default function LoadingScreen({ formData, onDone }: { formData: FormData | null; onDone: (route: RouteResponse | null, pois?: POI[]) => void }) {
   const [activeStage, setActiveStage] = useState(0);
   const [completed, setCompleted] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -53,16 +53,25 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
           formData.vehicle
         );
 
-        // Stage 3-5 animation
-        setTimeout(() => { setActiveStage(2); setCompleted([0, 1]); }, 800);
-        setTimeout(() => { setActiveStage(3); setCompleted([0, 1, 2]); }, 1200);
-        setTimeout(() => { setActiveStage(4); setCompleted([0, 1, 2, 3]); }, 1600);
-        setTimeout(() => { setCompleted([0, 1, 2, 3, 4]); }, 2000);
+        setTimeout(() => { setActiveStage(2); setCompleted([0, 1]); }, 600);
+        setTimeout(() => { setActiveStage(3); setCompleted([0, 1, 2]); }, 1000);
+
+        // Stage 4: Fetch POIs
+        const pois = await fetchPOIs(
+          formData.start.lat,
+          formData.start.lng,
+          formData.destination.lat,
+          formData.destination.lng,
+          formData.interests || []
+        );
         
-        setTimeout(() => onDone(route), 2400);
+        setTimeout(() => { setActiveStage(4); setCompleted([0, 1, 2, 3]); }, 1400);
+        setTimeout(() => { setCompleted([0, 1, 2, 3, 4]); }, 1800);
+        
+        setTimeout(() => onDone(route, pois), 2200);
 
       } catch (err: any) {
-        setError(err.message || 'Failed to calculate route');
+        setError(err.message || 'Failed to calculate route or discover POIs');
       }
     }
 
