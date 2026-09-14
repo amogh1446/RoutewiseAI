@@ -58,14 +58,14 @@ export class OSMProvider implements GeoProvider {
   
   async getRoute(req: RouteRequest): Promise<RouteResult> {
     // OSRM expects coordinates as lon,lat
-    const origin = `${req.origin.lng},${req.origin.lat}`;
-    const destination = `${req.destination.lng},${req.destination.lat}`;
+    const coords = [req.origin, ...(req.waypoints || []), req.destination];
+    const coordString = coords.map(c => `${c.lng},${c.lat}`).join(';');
     
     // For MVP, we map both car and motorcycle to 'driving' profile on public OSRM
     const profile = 'driving';
     
     const baseUrl = process.env.GEO_OSRM_URL || 'https://router.project-osrm.org';
-    const url = `${baseUrl}/route/v1/${profile}/${origin};${destination}?overview=full&geometries=geojson`;
+    const url = `${baseUrl}/route/v1/${profile}/${coordString}?overview=full&geometries=geojson`;
 
     const res = await fetch(url, {
       headers: { 'User-Agent': this.userAgent }

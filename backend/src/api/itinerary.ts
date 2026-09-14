@@ -43,6 +43,7 @@ itineraryRouter.post('/', async (req: Request, res: Response) => {
 
     const tripParams: TripParams = {
       days: params.days,
+      startDate: params.startDate,
       vehicle: params.vehicle || 'car',
       pace: params.pace || 'balanced',
       interests: params.interests || [],

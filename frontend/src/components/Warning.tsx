@@ -2,13 +2,14 @@
 // RouteWise — Warning Component (from Figma)
 // =============================================================
 
-type Severity = 'info' | 'advisory' | 'important';
+type Severity = 'info' | 'warning' | 'critical' | 'advisory' | 'important'; // backwards compatibility
 
 type WarningProps = {
   severity: Severity;
   title: string;
   description?: string;
   compact?: boolean;
+  requiresVerification?: boolean;
 };
 
 const config: Record<Severity, { bg: string; border: string; icon: string; label: string; labelColor: string }> = {
@@ -19,23 +20,25 @@ const config: Record<Severity, { bg: string; border: string; icon: string; label
     label: 'Information',
     labelColor: '#2B5F8A',
   },
-  advisory: {
+  warning: {
     bg: '#FDF3E3',
     border: '#F0D5A8',
     icon: '⚠',
     label: 'Advisory',
     labelColor: '#C17B2E',
   },
-  important: {
+  critical: {
     bg: '#FDF0EE',
     border: '#F0C4BC',
     icon: '!',
     label: 'Important',
     labelColor: '#C44B3A',
   },
+  advisory: { bg: '#FDF3E3', border: '#F0D5A8', icon: '⚠', label: 'Advisory', labelColor: '#C17B2E' },
+  important: { bg: '#FDF0EE', border: '#F0C4BC', icon: '!', label: 'Important', labelColor: '#C44B3A' },
 };
 
-export default function Warning({ severity, title, description, compact }: WarningProps) {
+export default function Warning({ severity, title, description, compact, requiresVerification }: WarningProps) {
   const c = config[severity];
   return (
     <div
@@ -43,10 +46,9 @@ export default function Warning({ severity, title, description, compact }: Warni
         background: c.bg,
         border: `1px solid ${c.border}`,
         borderRadius: 10,
-        padding: compact ? '10px 14px' : '14px 16px',
+        padding: compact ? '12px 14px' : '16px 18px',
         display: 'flex',
-        gap: 12,
-        alignItems: 'flex-start',
+        gap: compact ? 12 : 16,
       }}
     >
       <div
@@ -72,6 +74,11 @@ export default function Warning({ severity, title, description, compact }: Warni
           <span style={{ fontSize: 11, fontWeight: 600, color: c.labelColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             {c.label}
           </span>
+          {requiresVerification && (
+            <span style={{ fontSize: 10, fontWeight: 600, background: '#FFFFFF', padding: '2px 6px', borderRadius: 100, border: `1px solid ${c.border}`, color: c.labelColor }}>
+              Requires Verification
+            </span>
+          )}
         </div>
         <p style={{ margin: 0, fontSize: 14, color: '#1A1714', fontWeight: 500, lineHeight: 1.4 }}>{title}</p>
         {description && !compact && (

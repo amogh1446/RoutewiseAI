@@ -285,6 +285,44 @@ describe('RouteWise API', async () => {
       }
     });
 
+    it('returns results for valid route with waypoints', async () => {
+      const originalFetch = global.fetch;
+      let requestedUrl = '';
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          if (url.toString().includes('router.project-osrm.org')) {
+            requestedUrl = url.toString();
+            return {
+              ok: true,
+              json: async () => ({
+                code: 'Ok',
+                routes: [
+                  {
+                    distance: 155000,
+                    duration: 13000,
+                    geometry: {
+                      type: 'LineString',
+                      coordinates: [[77.5, 12.9], [77.0, 12.5], [76.6, 12.3]]
+                    }
+                  }
+                ]
+              })
+            } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/route?startLat=12.9&startLng=77.5&endLat=12.3&endLng=76.6&waypoints=12.5,77.0|12.6,77.1');
+        assert.equal(status, 200);
+        assert.ok(requestedUrl.includes('77.5,12.9;77,12.5;77.1,12.6;76.6,12.3'));
+        assert.equal(body.success, true);
+        const data = body.data as Record<string, unknown>;
+        assert.equal(data.distanceKm, 155);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
     it('returns 500 when OSRM fails', async () => {
       const originalFetch = global.fetch;
       try {
@@ -432,7 +470,7 @@ describe('RouteWise API', async () => {
           { id: '1', name: 'POI End', lat: 0.1, lng: 0.01, category: 'waterfalls' },
           { id: '2', name: 'POI Start', lat: 0, lng: 0.09, category: 'waterfalls' }
         ],
-        params: { days: 2, vehicle: 'car', pace: 'balanced', startName: 'A', endName: 'B' }
+        params: { days: 2, startDate: '2026-09-17', vehicle: 'car', pace: 'balanced', startName: 'A', endName: 'B' }
       };
       
       const { status, body } = await post('/api/v1/itinerary', payload);
@@ -446,7 +484,7 @@ describe('RouteWise API', async () => {
       assert.ok(data.days[1].stops.find((s: any) => s.name === 'POI End'));
     });
 
-    it('enforces detour limits and excludes must-visit with a warning if infeasible', async () => {
+    it('enforces overall trip feasibility for huge must-visits', async () => {
       global.fetch = async (url: any, init?: any) => {
         if (url.toString().includes('router.project-osrm.org')) {
            return { ok: true, json: async () => ({ routes: [{ distance: 50000, duration: 6000, geometry: '' }] }) } as Response;
@@ -454,16 +492,19 @@ describe('RouteWise API', async () => {
         return originalFetch(url, init);
       };
 
+      // 50,000 km in 1 day is unfeasible.
+      // Must-visit logic should respect this.
       const payload = {
-        route: { distanceKm: 100, durationMinutes: 120, start: { lat: 0, lng: 0 }, end: { lat: 1, lng: 0 }, geometry: { coordinates: [[0,0], [0,1]] } },
-        pois: [{ id: '1', name: 'Huge Detour POI', lat: 0.5, lng: 0, category: 'waterfalls' }],
-        params: { days: 1, vehicle: 'car', pace: 'balanced', mustVisits: [{ id: '1', name: 'Huge Detour POI' }] }
+        route: { distanceKm: 50000, durationMinutes: 6000, start: { lat: 0, lng: 0 }, end: { lat: 1, lng: 0 }, geometry: { coordinates: [[0,0], [0,1]] } },
+        pois: [],
+        params: { days: 1, vehicle: 'car', pace: 'balanced', mustVisits: [{ id: '1', name: 'Huge Detour POI', lat: 0.5, lng: 100 }] }
       };
       
       const { status, body } = await post('/api/v1/itinerary', payload);
       const data = body.data as any;
-      assert.equal(data.days[0].stops.find((s: any) => s.name.includes('Huge Detour POI')), undefined);
-      assert.ok(data.warnings.find((w: any) => w.title === 'Must-visit excluded'));
+      // Because route distance is 50,000 km on a 1-day trip, it should be marked unfeasible.
+      assert.equal(data.feasibility.feasible, false);
+      assert.ok(data.warnings.find((w: any) => w.title === 'Unfeasible Trip'));
     });
 
     it('injects car fatigue guidance (approx 3.5 hrs)', async () => {
@@ -563,6 +604,51 @@ describe('RouteWise API', async () => {
       const { status, body } = await post('/api/v1/itinerary', payload);
       assert.equal(body.data.feasibility.feasible, false);
       assert.equal(body.data.feasibility.severity, 'critical');
+    });
+
+    it('calculates accurate dates across days', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 5000, duration: 600, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 250, durationMinutes: 240, start: { lat: 0, lng: 0 }, end: { lat: 0.1, lng: 0 }, geometry: { coordinates: [[0,0], [0.1,0], [0.1,0.1], [0,0.1]] } },
+        pois: [],
+        params: { days: 2, startDate: '2026-10-30', vehicle: 'car', pace: 'balanced', startName: 'A', endName: 'B' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      assert.equal(data.days[0].dateStr.includes('30'), true);
+      assert.equal(data.days[0].dayOfWeek, 'Friday');
+      assert.equal(data.days[1].dateStr.includes('31'), true);
+      assert.equal(data.days[1].dayOfWeek, 'Saturday');
+    });
+
+    it('evaluates polygon constraints and applies warnings', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 5000, duration: 600, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 50, durationMinutes: 60, start: { lat: 11.6, lng: 76.2 }, end: { lat: 11.9, lng: 76.8 }, geometry: { coordinates: [[76.2, 11.6], [76.62, 11.66], [76.8, 11.9]] } },
+        pois: [
+          // Inside Bandipur bounding box (11.66, 76.62)
+          { id: '1', name: 'Bandipur POI', lat: 11.66, lng: 76.62, category: 'park' }
+        ],
+        params: { days: 1, startDate: '2026-10-30', vehicle: 'car', pace: 'balanced', startName: 'A', endName: 'B' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      // Should have Bandipur Night Traffic Ban warning
+      assert.ok(data.days[0].warnings.find((w: any) => w.title.includes('Bandipur')));
     });
 
   });

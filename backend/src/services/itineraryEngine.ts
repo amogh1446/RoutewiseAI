@@ -1,4 +1,5 @@
 import type { VehicleType } from '../utils/types.js';
+import { LocalConstraintProvider } from '../providers/constraintProvider.js';
 
 export interface RouteInput {
   distanceKm: number;
@@ -19,12 +20,21 @@ export interface POIInput {
 
 export interface TripParams {
   days: number;
+  startDate?: string;
   vehicle: VehicleType | string;
   pace: string;
   interests: string[];
   mustVisits?: any[];
   startName: string;
   endName: string;
+}
+
+export interface TripWarning {
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  description: string;
+  source: 'verified' | 'advisory';
+  requiresVerification: boolean;
 }
 
 export interface Stop {
@@ -34,17 +44,19 @@ export interface Stop {
   detail: string;
   duration?: string;
   detour?: string;
-  warning?: { severity: 'info' | 'advisory' | 'important'; text: string };
+  warning?: { severity: 'info' | 'warning' | 'critical'; text: string };
 }
 
 export interface ItineraryDay {
   day: number;
+  dateStr?: string;
+  dayOfWeek?: string;
   from: string;
   to: string;
   km: number;
   driveTime: string;
   stops: Stop[];
-  warnings: { severity: 'info' | 'advisory' | 'important'; title: string; description: string }[];
+  warnings: TripWarning[];
   highlights: string[];
 }
 
@@ -58,7 +70,7 @@ export interface Feasibility {
 export interface ItineraryResponse {
   feasibility: Feasibility;
   days: ItineraryDay[];
-  warnings: { severity: 'info' | 'advisory' | 'important'; title: string; description: string }[];
+  warnings: TripWarning[];
 }
 
 // Haversine distance in km
@@ -172,11 +184,11 @@ export async function generateItinerary(
     return {
       feasibility,
       days: [],
-      warnings: feasibility.reasons.map(r => ({ severity: 'important', title: 'Unfeasible Trip', description: r }))
+      warnings: feasibility.reasons.map(r => ({ severity: 'critical', title: 'Unfeasible Trip', description: r, source: 'advisory', requiresVerification: false }))
     };
   }
 
-  let tripWarnings: any[] = [];
+  let tripWarnings: TripWarning[] = [];
   let validPois = [];
 
   // 2. Detour Checks and Ordering
@@ -186,14 +198,33 @@ export async function generateItinerary(
   const DETOUR_MAX_KM = 20;
   const DETOUR_MAX_MINS = 45;
 
+  // Must-visits are now waypoints built into the route, so their detour is 0
+  for (const mv of mustVisits) {
+    if (mv.lat !== undefined && mv.lng !== undefined) {
+      const proj = projectToPolyline({ lat: mv.lat, lng: mv.lng }, coords);
+      validPois.push({ 
+        id: mv.place_id || mv.id || 'mv', 
+        name: mv.name, 
+        lat: mv.lat, 
+        lng: mv.lng, 
+        category: mv.category || 'attraction', 
+        score: proj.distanceAlongRoute, 
+        detourKm: 0, 
+        detourMins: 0, 
+        isMustVisit: true 
+      });
+    }
+  }
+
   for (const poi of pois) {
     const isMustVisit = mustVisits.some(m => m.id === poi.id || m.place_id === poi.id || m.name === poi.name);
+    if (isMustVisit) continue; // Already handled above
     
     // Project to polyline
     const proj = projectToPolyline(poi, coords);
     
-    // If straight line is already > 30km, definitely skip road routing to save time (unless it's a must-visit, but even then it's way off)
-    if (proj.minDistance > 30 && !isMustVisit) continue;
+    // If straight line is already > 30km, definitely skip road routing to save time
+    if (proj.minDistance > 30) continue;
 
     // Calculate actual detour cost using provider
     try {
@@ -204,26 +235,13 @@ export async function generateItinerary(
       const roundTripMins = detourMins * 2;
 
       if (roundTripKm <= DETOUR_MAX_KM && roundTripMins <= DETOUR_MAX_MINS) {
-        validPois.push({ ...poi, score: proj.distanceAlongRoute, detourKm: roundTripKm, detourMins: roundTripMins, isMustVisit });
-      } else {
-        if (isMustVisit) {
-          tripWarnings.push({ severity: 'important', title: 'Must-visit excluded', description: `${poi.name} was excluded because the detour is too large (${roundTripKm.toFixed(1)} km, ${Math.round(roundTripMins)} mins).` });
-        }
+        validPois.push({ ...poi, score: proj.distanceAlongRoute, detourKm: roundTripKm, detourMins: roundTripMins, isMustVisit: false });
       }
     } catch (err) {
       // If route finding fails, fallback to straight line
       if (proj.minDistance * 2 <= DETOUR_MAX_KM) {
-         validPois.push({ ...poi, score: proj.distanceAlongRoute, detourKm: proj.minDistance * 2, detourMins: proj.minDistance * 2 * 2, isMustVisit });
-      } else if (isMustVisit) {
-         tripWarnings.push({ severity: 'important', title: 'Must-visit excluded', description: `${poi.name} was excluded because no road route could be found.` });
+         validPois.push({ ...poi, score: proj.distanceAlongRoute, detourKm: proj.minDistance * 2, detourMins: proj.minDistance * 2 * 2, isMustVisit: false });
       }
-    }
-  }
-
-  // Find must visits that were not in the POI list at all
-  for (const mv of mustVisits) {
-    if (!pois.some(p => p.id === mv.id || p.place_id === mv.id || p.name === mv.name)) {
-      tripWarnings.push({ severity: 'advisory', title: 'Must-visit not found', description: `${mv.name || 'A requested place'} could not be found along this route corridor.` });
     }
   }
 
@@ -236,10 +254,24 @@ export async function generateItinerary(
   
   let currentPoiIdx = 0;
   const itineraryDays: ItineraryDay[] = [];
+  const constraintProvider = new LocalConstraintProvider();
 
   for (let day = 1; day <= days; day++) {
     const isLastDay = day === days;
     const isFirstDay = day === 1;
+
+    let dateStr, dayOfWeek;
+    let dayDate: Date | null = null;
+    if (params.startDate) {
+      dayDate = new Date(params.startDate);
+      dayDate.setDate(dayDate.getDate() + (day - 1));
+      
+      const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      dateStr = dayDate.toLocaleDateString('en-GB', options);
+      
+      const daysArr = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      dayOfWeek = daysArr[dayDate.getDay()];
+    }
     
     const dayKm = Math.round(dailyKm);
     const dayMins = Math.round(dailyMins);
@@ -328,20 +360,38 @@ export async function generateItinerary(
       detail: isLastDay ? 'End of the journey.' : 'Rest and recharge for tomorrow.'
     });
 
+    const dayWarnings: TripWarning[] = dayMins > 360 ? [{ severity: 'warning', title: 'Long driving day', description: 'Take breaks regularly and stay hydrated.', source: 'advisory', requiresVerification: false }] : [];
+
+    for (const poi of dayPois) {
+      if (dayDate) {
+        const poiWarnings = constraintProvider.evaluate({
+          date: dayDate,
+          lat: poi.lat,
+          lng: poi.lng,
+          vehicle_type: vehicle as VehicleType
+        });
+        if (poiWarnings.length > 0) {
+          dayWarnings.push(...poiWarnings);
+        }
+      }
+    }
+
     itineraryDays.push({
       day,
+      dateStr,
+      dayOfWeek,
       from: isFirstDay ? startName : `Day ${day - 1} Stop`,
       to: isLastDay ? endName : `Day ${day} Stop`,
       km: dayKm,
       driveTime: formatDuration(dayMins),
       stops,
-      warnings: dayMins > 360 ? [{ severity: 'important', title: 'Long driving day', description: 'Take breaks regularly and stay hydrated.' }] : [],
+      warnings: dayWarnings,
       highlights: highlights.slice(0, 3)
     });
   }
 
   if (validPois.length === 0 && tripWarnings.length === 0) {
-    tripWarnings.push({ severity: 'info', title: 'No suitable POIs', description: 'No suitable places of interest were found within reasonable detour range.' });
+    tripWarnings.push({ severity: 'info', title: 'No suitable POIs', description: 'No suitable places of interest were found within reasonable detour range.', source: 'advisory', requiresVerification: false });
   }
 
   return {

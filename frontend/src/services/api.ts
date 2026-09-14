@@ -91,8 +91,13 @@ export interface RouteResponse {
   end: { lat: number; lng: number };
 }
 
-export async function fetchRoute(startLat: number, startLng: number, endLat: number, endLng: number, vehicle: string = 'car'): Promise<RouteResponse> {
-  return apiFetch<RouteResponse>(`/route?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&vehicle=${vehicle}`);
+export async function fetchRoute(startLat: number, startLng: number, endLat: number, endLng: number, vehicle: string = 'car', waypoints: {lat: number, lng: number}[] = []): Promise<RouteResponse> {
+  let url = `/route?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&vehicle=${vehicle}`;
+  if (waypoints.length > 0) {
+    const wpStr = waypoints.map(wp => `${wp.lat},${wp.lng}`).join('|');
+    url += `&waypoints=${encodeURIComponent(wpStr)}`;
+  }
+  return apiFetch<RouteResponse>(url);
 }
 
 // ── POI Discovery ──────────────────────────────────────────
@@ -122,14 +127,24 @@ export interface Stop {
   warning?: { severity: 'info' | 'advisory' | 'important'; text: string };
 }
 
+export interface TripWarning {
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  description: string;
+  source: 'verified' | 'advisory';
+  requiresVerification: boolean;
+}
+
 export interface ItineraryDay {
   day: number;
+  dateStr?: string;
+  dayOfWeek?: string;
   from: string;
   to: string;
   km: number;
   driveTime: string;
   stops: Stop[];
-  warnings: { severity: 'info' | 'advisory' | 'important'; title: string; description: string }[];
+  warnings: TripWarning[];
   highlights: string[];
 }
 
@@ -143,7 +158,7 @@ export interface Feasibility {
 export interface ItineraryResponse {
   feasibility: Feasibility;
   days: ItineraryDay[];
-  warnings: { severity: 'info' | 'advisory' | 'important'; title: string; description: string }[];
+  warnings: TripWarning[];
 }
 
 export async function generateItinerary(

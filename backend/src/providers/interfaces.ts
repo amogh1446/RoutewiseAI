@@ -31,6 +31,7 @@ export interface RouteRequest {
   origin: Coordinates;
   destination: Coordinates;
   vehicle_type: VehicleType;
+  waypoints?: Coordinates[];
 }
 
 export interface RouteResult {
@@ -42,6 +43,27 @@ export interface RouteResult {
 
 export interface RoutingProvider {
   getRoute(req: RouteRequest): Promise<RouteResult>;
+}
+
+// ── Constraints ────────────────────────────────────────────
+
+export interface TripWarning {
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  description: string;
+  source: 'verified' | 'advisory';
+  requiresVerification: boolean;
+}
+
+export interface ConstraintCheckRequest {
+  date: Date;
+  lat: number;
+  lng: number;
+  vehicle_type: VehicleType;
+}
+
+export interface ConstraintProvider {
+  evaluate(req: ConstraintCheckRequest): TripWarning[];
 }
 
 // ── Places / POI ───────────────────────────────────────────

@@ -276,6 +276,7 @@ export default function TripOverview({
                     severity={w.severity}
                     title={w.title}
                     description={w.description}
+                    requiresVerification={w.requiresVerification}
                   />
                 ))
               )}
@@ -371,9 +372,9 @@ export default function TripOverview({
 
 // ── Sub-components ─────────────────────────────────────────
 
-function DayCard({ day, onClick }: { day: (typeof tripDays)[0]; onClick: () => void }) {
-  const warnBadge = day.warnings[0] as 'advisory' | 'important' | 'info' | undefined;
-  const badgeColor = warnBadge === 'important' ? '#C44B3A' : warnBadge === 'advisory' ? '#C17B2E' : '#2B5F8A';
+function DayCard({ day, onClick }: { day: import('../services/api').ItineraryDay | any; onClick: () => void }) {
+  const warnBadge = day.warnings?.[0]?.severity as 'warning' | 'critical' | 'info' | undefined;
+  const badgeColor = warnBadge === 'critical' ? '#C44B3A' : warnBadge === 'warning' ? '#C17B2E' : '#2B5F8A';
 
   return (
     <button
@@ -401,9 +402,16 @@ function DayCard({ day, onClick }: { day: (typeof tripDays)[0]; onClick: () => v
       </div>
       <div style={{ flex: 1, padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1A1714', margin: 0, letterSpacing: '-0.01em' }}>
-            {day.from} → {day.to.split(' (')[0]}
-          </h3>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1A1714', margin: '0 0 2px', letterSpacing: '-0.01em' }}>
+              {day.from} → {day.to.split(' (')[0]}
+            </h3>
+            {day.dateStr && (
+              <div style={{ fontSize: 12, color: '#6B6358' }}>
+                {day.dayOfWeek ? `${day.dayOfWeek}, ` : ''}{day.dateStr}
+              </div>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {warnBadge && (
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: badgeColor }} />
@@ -418,7 +426,7 @@ function DayCard({ day, onClick }: { day: (typeof tripDays)[0]; onClick: () => v
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6B6358' }}>~{day.driveTime} drive</span>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {day.highlights.map(h => (
+          {day.highlights?.map((h: string) => (
             <span key={h} style={{ fontSize: 12, color: '#6B6358', background: '#F7F4EF', border: '1px solid #EDE8DF', borderRadius: 100, padding: '3px 9px' }}>
               {h}
             </span>

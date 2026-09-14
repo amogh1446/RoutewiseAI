@@ -42,8 +42,25 @@ routeRouter.get('/', async (req: Request, res: Response): Promise<void> => {
     const routeReq: RouteRequest = {
       origin: { lat: sLat, lng: sLng },
       destination: { lat: eLat, lng: eLng },
-      vehicle_type: (vehicle as VehicleType) || 'car'
+      vehicle_type: (vehicle as VehicleType) || 'car',
+      waypoints: []
     };
+
+    if (req.query.waypoints) {
+      try {
+        const wpStr = req.query.waypoints as string;
+        routeReq.waypoints = wpStr.split('|').map(wp => {
+          const [lat, lng] = wp.split(',').map(Number);
+          if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            throw new Error('Invalid waypoint coordinates');
+          }
+          return { lat, lng };
+        });
+      } catch (err) {
+        res.status(400).json(errorResponse('Waypoints must be in format lat,lng|lat,lng with valid coordinates', 'INVALID_QUERY'));
+        return;
+      }
+    }
 
     const routeResult = await geoProvider.getRoute(routeReq);
 

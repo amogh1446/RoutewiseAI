@@ -45,12 +45,15 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
         // Stage 2: Fetching route
         setTimeout(() => { setActiveStage(1); setCompleted([0]); }, 400);
         
+        const waypoints = (formData.wishlist || []).map(wp => ({ lat: wp.lat, lng: wp.lng }));
+        
         const route = await fetchRoute(
           formData.start.lat,
           formData.start.lng,
           formData.destination.lat,
           formData.destination.lng,
-          formData.vehicle
+          formData.vehicle,
+          waypoints
         );
 
         setTimeout(() => { setActiveStage(2); setCompleted([0, 1]); }, 600);
@@ -70,6 +73,7 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
         // Stage 5: Generate Itinerary
         const itinerary = await generateItinerary(route, pois, {
           days: Number(formData.days),
+          startDate: formData.startDate,
           vehicle: formData.vehicle,
           pace: formData.pace,
           interests: formData.interests,
