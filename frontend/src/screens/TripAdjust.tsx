@@ -1,15 +1,8 @@
-// =============================================================
-// RouteWise — Trip Adjust Screen
-// =============================================================
-// Lets the user modify trip parameters and trigger a replan.
-// Pre-populated from the current FormData so users see their
-// original choices and can adjust just what they want.
-// =============================================================
-
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import LocationSearch from '../components/LocationSearch';
 import type { FormData } from './PlannerForm';
+import type { GeocodeResult } from '../services/api';
 
 const interests = ['Nature', 'Beaches', 'Mountains', 'Temples', 'Forts', 'Wildlife', 'Food', 'Culture', 'Adventure', 'Hidden gems'];
 
@@ -31,7 +24,7 @@ export default function TripAdjust({
   const [pace, setPace] = useState(formData?.pace || 'balanced');
   const [toll, setToll] = useState(formData?.toll || 'balanced');
   const [selectedInterests, setSelectedInterests] = useState<string[]>(formData?.interests ?? ['Nature', 'Wildlife', 'Food']);
-  const [wishlist, setWishlist] = useState<string[]>(formData?.wishlist ?? []);
+  const [wishlist, setWishlist] = useState<GeocodeResult[]>(formData?.wishlist ?? []);
   const [startDate, setStartDate] = useState(formData?.startDate || today);
 
   const toggleInterest = (i: string) => {
@@ -40,7 +33,7 @@ export default function TripAdjust({
 
   const handleReplan = () => {
     const updated: FormData = {
-      ...(formData ?? { start: '', destination: '', tripType: '', group: '', budget: '' }),
+      ...(formData ?? { start: null, destination: null, tripType: '', group: '', budget: '' }),
       days: String(days),
       vehicle,
       pace,
@@ -235,9 +228,9 @@ export default function TripAdjust({
             {wishlist.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                 {wishlist.map(p => (
-                  <div key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#EBF4EE', border: '1px solid #C8E6D0', borderRadius: 100, padding: '5px 12px' }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: '#2D5A3D' }}>{p}</span>
-                    <button onClick={() => setWishlist(w => w.filter(x => x !== p))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3D7A52', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                  <div key={p.place_id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#EBF4EE', border: '1px solid #C8E6D0', borderRadius: 100, padding: '5px 12px' }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#2D5A3D' }}>{p.name}</span>
+                    <button onClick={() => setWishlist(w => w.filter(x => x.place_id !== p.place_id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3D7A52', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
                   </div>
                 ))}
               </div>
@@ -275,15 +268,15 @@ function AdjustSection({ label, children, last }: { label: string; children: Rea
   );
 }
 
-function WishlistAddRow({ existing, onAdd }: { existing: string[]; onAdd: (v: string) => void }) {
+function WishlistAddRow({ existing, onAdd }: { existing: GeocodeResult[]; onAdd: (v: GeocodeResult) => void }) {
   const [adding, setAdding] = useState(false);
   if (adding) {
     return (
       <LocationSearch
         label=""
         placeholder="Search a place to add…"
-        value=""
-        onSelect={v => { if (v && !existing.includes(v)) { onAdd(v); setAdding(false); } }}
+        value={null}
+        onSelect={v => { if (v && !existing.find(x => x.place_id === v.place_id)) { onAdd(v); setAdding(false); } }}
       />
     );
   }

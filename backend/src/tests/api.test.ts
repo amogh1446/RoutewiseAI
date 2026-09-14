@@ -144,6 +144,83 @@ describe('RouteWise API', async () => {
     });
   });
 
+  // ── Geocoding ─────────────────────────────────────────
+
+  describe('GET /api/v1/geocode', () => {
+    it('returns 400 for missing query', async () => {
+      const { status, body } = await get('/api/v1/geocode');
+      assert.equal(status, 400);
+      assert.equal(body.success, false);
+      const error = body.error as Record<string, unknown>;
+      assert.equal(error.code, 'INVALID_QUERY');
+    });
+
+    it('returns 400 for too short query', async () => {
+      const { status, body } = await get('/api/v1/geocode?q=a');
+      assert.equal(status, 400);
+      assert.equal(body.success, false);
+    });
+
+    it('returns results for valid query with mocked fetch', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          if (url.toString().includes('nominatim.openstreetmap.org')) {
+            return {
+              ok: true,
+              json: async () => ([
+                {
+                  place_id: 123456,
+                  osm_type: 'node',
+                  osm_id: 78910,
+                  name: 'Bengaluru',
+                  display_name: 'Bengaluru, Karnataka, India',
+                  lat: '12.9715987',
+                  lon: '77.5945627'
+                }
+              ])
+            } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/geocode?q=Bengaluru');
+        assert.equal(status, 200);
+        assert.equal(body.success, true);
+        const data = body.data as Array<Record<string, unknown>>;
+        assert.equal(data.length, 1);
+        assert.equal(data[0].place_id, 'osm-node-78910');
+        assert.equal(data[0].name, 'Bengaluru');
+        assert.equal(data[0].lat, 12.9715987);
+        assert.equal(data[0].lng, 77.5945627);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('returns 500 when provider/upstream fails', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          if (url.toString().includes('nominatim.openstreetmap.org')) {
+            return {
+              ok: false,
+              status: 503,
+              statusText: 'Service Unavailable'
+            } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/geocode?q=Bengaluru');
+        assert.equal(status, 500);
+        assert.equal(body.success, false);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
   // ── 404 Handling ──────────────────────────────────────
 
   describe('404 Handling', () => {

@@ -62,8 +62,8 @@ export default function PreTripChecklist({
   const totalCount = items.length;
   const progress = Math.round((checkedCount / totalCount) * 100);
 
-  const from = formData?.start?.split(',')[0] ?? 'Origin';
-  const to = formData?.destination?.split(',')[0] ?? 'Destination';
+  const from = formData?.start?.name ?? 'Origin';
+  const to = formData?.destination?.name ?? 'Destination';
   const days = formData?.days ?? '?';
 
   return (

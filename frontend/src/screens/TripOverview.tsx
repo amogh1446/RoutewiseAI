@@ -88,8 +88,8 @@ export default function TripOverview({
 }) {
   const [activeTab, setActiveTab] = useState<'itinerary' | 'warnings'>('itinerary');
 
-  const from = formData?.start?.split(',')[0] ?? 'Bengaluru';
-  const to = formData?.destination?.split(',')[0] ?? 'Ooty';
+  const from = formData?.start?.name ?? 'Bengaluru';
+  const to = formData?.destination?.name ?? 'Ooty';
   const days = formData?.days ? Number(formData.days) : 5;
   const vehicle = formData?.vehicle === 'motorcycle' ? '🏍️ Motorcycle' : '🚗 Car';
 

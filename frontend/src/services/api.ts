@@ -78,9 +78,5 @@ export interface GeocodeResult {
 }
 
 export async function geocodeQuery(query: string): Promise<GeocodeResult[]> {
-  // When the backend geocoding endpoint is wired, use:
-  // return apiFetch<GeocodeResult[]>(`/geo/geocode?q=${encodeURIComponent(query)}`);
-  // For now, return empty — the LocationSearch component has its own fallback mock.
-  void query;
-  return [];
+  return apiFetch<GeocodeResult[]>(`/geocode?q=${encodeURIComponent(query)}`);
 }

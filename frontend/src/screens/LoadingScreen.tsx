@@ -20,8 +20,8 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
   const [activeStage, setActiveStage] = useState(0);
   const [completed, setCompleted] = useState<number[]>([]);
 
-  const from = formData?.start?.split(',')[0] ?? 'Origin';
-  const to = formData?.destination?.split(',')[0] ?? 'Destination';
+  const from = formData?.start?.name ?? 'Origin';
+  const to = formData?.destination?.name ?? 'Destination';
 
   useEffect(() => {
     let i = 0;

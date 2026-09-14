@@ -9,22 +9,23 @@
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import LocationSearch from '../components/LocationSearch';
+import type { GeocodeResult } from '../services/api';
 
 const interests = ['Nature', 'Beaches', 'Mountains', 'Temples', 'Forts', 'Wildlife', 'Food', 'Culture', 'Adventure', 'Hidden gems'];
 
-function WishlistSearch({ wishlist, onAdd, onRemove }: { wishlist: string[]; onAdd: (v: string) => void; onRemove: (v: string) => void }) {
+function WishlistSearch({ wishlist, onAdd, onRemove }: { wishlist: GeocodeResult[]; onAdd: (v: GeocodeResult) => void; onRemove: (v: GeocodeResult) => void }) {
   const [adding, setAdding] = useState(false);
   return (
     <div>
       {wishlist.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           {wishlist.map(p => (
-            <div key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#EBF4EE', border: '1px solid #C8E6D0', borderRadius: 100, padding: '5px 12px' }}>
+            <div key={p.place_id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#EBF4EE', border: '1px solid #C8E6D0', borderRadius: 100, padding: '5px 12px' }}>
               <svg width="12" height="14" viewBox="0 0 12 14" fill="none" style={{ flexShrink: 0 }}>
                 <path d="M6 1C3.79 1 2 2.79 2 5c0 3.5 4 8 4 8s4-4.5 4-8c0-2.21-1.79-4-4-4z" stroke="#2D5A3D" strokeWidth="1.2" fill="none" />
                 <circle cx="6" cy="5" r="1.5" fill="#2D5A3D" />
               </svg>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#2D5A3D' }}>{p}</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#2D5A3D' }}>{p.name}</span>
               <button onClick={() => onRemove(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3D7A52', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
             </div>
           ))}
@@ -34,8 +35,8 @@ function WishlistSearch({ wishlist, onAdd, onRemove }: { wishlist: string[]; onA
         <LocationSearch
           label=""
           placeholder="Search a place to add…"
-          value=""
-          onSelect={v => { if (v && !wishlist.includes(v)) { onAdd(v); setAdding(false); } }}
+          value={null}
+          onSelect={v => { if (v && !wishlist.find(x => x.place_id === v.place_id)) { onAdd(v); setAdding(false); } }}
         />
       ) : (
         <button
@@ -50,8 +51,8 @@ function WishlistSearch({ wishlist, onAdd, onRemove }: { wishlist: string[]; onA
 }
 
 export type FormData = {
-  start: string;
-  destination: string;
+  start: GeocodeResult | null;
+  destination: GeocodeResult | null;
   startDate: string;
   days: string;
   vehicle: 'car' | 'motorcycle' | '';
@@ -61,7 +62,7 @@ export type FormData = {
   interests: string[];
   budget: string;
   toll: string;
-  wishlist: string[];
+  wishlist: GeocodeResult[];
 };
 
 export default function PlannerForm({
@@ -76,8 +77,8 @@ export default function PlannerForm({
   const today = new Date().toISOString().split('T')[0];
 
   const [form, setForm] = useState<FormData>({
-    start: '',
-    destination: '',
+    start: null,
+    destination: null,
     startDate: '',
     days: '',
     vehicle: '',
