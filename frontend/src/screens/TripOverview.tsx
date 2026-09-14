@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import Warning from '../components/Warning';
+import InteractiveMap from '../components/InteractiveMap';
 import type { FormData } from './PlannerForm';
 
 // ── Sample trip data ─────────────────────────────────────────
@@ -161,9 +162,8 @@ export default function TripOverview({
               height: 340,
             }}
           >
-            {/* Styled map placeholder mimicking OSM tile appearance */}
-            <MapPlaceholder from={from} to={to} />
-            <div style={{ position: 'absolute', top: 12, left: 12 }}>
+            <InteractiveMap isLoading={false} />
+            <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 100 }}>
               <div style={{ background: '#F7F4EF', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#6B6358', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
                 Map · OpenStreetMap
               </div>
@@ -381,43 +381,5 @@ function DayCard({ day, onClick }: { day: (typeof tripDays)[0]; onClick: () => v
         </div>
       </div>
     </button>
-  );
-}
-
-function MapPlaceholder({ from, to }: { from: string; to: string }) {
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: 'linear-gradient(135deg, #d4e6d4 0%, #c8d8b8 30%, #b8c8a8 60%, #d0c8a0 100%)',
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {/* Stylised road network lines */}
-      <svg width="100%" height="100%" viewBox="0 0 800 340" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0 }}>
-        <path d="M50 270 Q200 220 320 200 Q450 180 520 150 Q600 120 700 80" stroke="#b8c4a8" strokeWidth="3" fill="none" opacity="0.6" />
-        <path d="M50 290 Q300 250 500 200 Q650 160 750 110" stroke="#c0ccb0" strokeWidth="2" fill="none" opacity="0.4" />
-        <path d="M100 300 Q200 280 300 260 Q400 240 500 220" stroke="#aab8a0" strokeWidth="1.5" fill="none" opacity="0.3" />
-        {/* Main route line */}
-        <path d="M150 280 Q260 240 350 210 Q460 178 550 140 Q640 100 700 70" stroke="#2D5A3D" strokeWidth="3" fill="none" strokeDasharray="8 4" opacity="0.8" />
-        {/* Start marker */}
-        <circle cx="150" cy="280" r="10" fill="#2D5A3D" />
-        <text x="165" y="275" fontSize="12" fill="#1A1714" fontWeight="700" fontFamily="JetBrains Mono, monospace">{from.slice(0, 3).toUpperCase()}</text>
-        {/* End marker */}
-        <circle cx="700" cy="70" r="10" fill="#C17B2E" />
-        <text x="715" y="65" fontSize="12" fill="#1A1714" fontWeight="700" fontFamily="JetBrains Mono, monospace">{to.slice(0, 3).toUpperCase()}</text>
-        {/* Waypoints */}
-        <circle cx="350" cy="210" r="6" fill="#3D7A52" opacity="0.8" />
-        <circle cx="550" cy="140" r="6" fill="#3D7A52" opacity="0.8" />
-      </svg>
-      {/* Map attribution */}
-      <div style={{ position: 'absolute', bottom: 8, right: 12, fontSize: 10, color: '#6B6358', background: 'rgba(247,244,239,0.8)', padding: '2px 6px', borderRadius: 4 }}>
-        © OpenStreetMap contributors
-      </div>
-    </div>
   );
 }
