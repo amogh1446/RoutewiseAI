@@ -1,12 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+:root {
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Outfit', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-cream: #F7F4EF;
+  --color-cream-dark: #EDE8DF;
+  --color-cream-darker: #E0D9CC;
+  --color-ink: #1A1714;
+  --color-ink-light: #3D3830;
+  --color-ink-muted: #6B6358;
+  --color-forest: #2D5A3D;
+  --color-forest-light: #3D7A52;
+  --color-forest-pale: #EBF4EE;
+  --color-forest-mid: #C8E6D0;
+  --color-amber: #C17B2E;
+  --color-amber-pale: #FDF3E3;
+  --color-amber-mid: #F0D5A8;
+  --color-red-soft: #C44B3A;
+  --color-red-pale: #FDF0EE;
+  --color-red-mid: #F0C4BC;
+  --color-blue-soft: #2B5F8A;
+  --color-blue-pale: #EEF4FB;
+  --color-blue-mid: #C0D8EF;
+  --color-border: #DDD7CC;
+  --color-border-light: #EDE8DF;
+  --color-white: #FFFFFF;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-body);
+  background-color: var(--color-cream);
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-muted);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
