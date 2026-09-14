@@ -109,3 +109,69 @@ export async function fetchPOIs(startLat: number, startLng: number, endLat: numb
   const interestsQuery = interests.length > 0 ? interests.join(',') : 'attraction';
   return apiFetch<POI[]>(`/pois?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&interests=${encodeURIComponent(interestsQuery)}`);
 }
+
+// ── Itinerary Generation ───────────────────────────────────
+
+export interface Stop {
+  type: 'drive' | 'attraction' | 'food' | 'break' | 'arrival' | 'departure';
+  time: string;
+  name: string;
+  detail: string;
+  duration?: string;
+  detour?: string;
+  warning?: { severity: 'info' | 'advisory' | 'important'; text: string };
+}
+
+export interface ItineraryDay {
+  day: number;
+  from: string;
+  to: string;
+  km: number;
+  driveTime: string;
+  stops: Stop[];
+  warnings: { severity: 'info' | 'advisory' | 'important'; title: string; description: string }[];
+  highlights: string[];
+}
+
+export interface Feasibility {
+  feasible: boolean;
+  severity: 'none' | 'warning' | 'critical';
+  reasons: string[];
+  recommendedDays?: number;
+}
+
+export interface ItineraryResponse {
+  feasibility: Feasibility;
+  days: ItineraryDay[];
+  warnings: { severity: 'info' | 'advisory' | 'important'; title: string; description: string }[];
+}
+
+export async function generateItinerary(
+  route: RouteResponse,
+  pois: POI[],
+  params: any
+): Promise<ItineraryResponse> {
+  const payload = {
+    route: {
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      start: route.start,
+      end: route.end,
+      geometry: route.geometry
+    },
+    pois,
+    params
+  };
+
+  const res = await fetch(`${API_BASE}/itinerary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  
+  const body = await res.json();
+  if (!res.ok || !body.success) {
+    throw new Error(body.error?.message || 'Failed to generate itinerary');
+  }
+  return body.data;
+}

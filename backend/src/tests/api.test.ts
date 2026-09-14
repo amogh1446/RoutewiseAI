@@ -6,7 +6,7 @@
 // Tests the actual HTTP API against the real database.
 // =============================================================
 
-import { describe, it, after } from 'node:test';
+import { describe, it, after, before, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import '../env.js';
 import { app } from '../app.js';
@@ -31,6 +31,16 @@ const startServer = (): Promise<void> =>
 // Helpers
 async function get(path: string): Promise<{ status: number; body: Record<string, unknown> }> {
   const res = await fetch(`${baseUrl}${path}`);
+  const body = await res.json() as Record<string, unknown>;
+  return { status: res.status, body };
+}
+
+async function post(path: string, payload: any): Promise<{ status: number; body: Record<string, unknown> }> {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
   const body = await res.json() as Record<string, unknown>;
   return { status: res.status, body };
 }
@@ -388,6 +398,173 @@ describe('RouteWise API', async () => {
         global.fetch = originalFetch;
       }
     });
+  });
+
+  // ── Itinerary Generation ──────────────────────────────
+
+  describe('POST /api/v1/itinerary', () => {
+    let originalFetch: any;
+
+    before(() => {
+      originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('returns 400 for missing body', async () => {
+      const { status, body } = await post('/api/v1/itinerary', {});
+      assert.equal(status, 400);
+    });
+
+    it('generates a valid itinerary and orders POIs by route, ignoring lat/lng', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 5000, duration: 600, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 250, durationMinutes: 240, start: { lat: 0, lng: 0 }, end: { lat: 0.1, lng: 0 }, geometry: { coordinates: [[0,0], [0.1,0], [0.1,0.1], [0,0.1]] } },
+        pois: [
+          { id: '1', name: 'POI End', lat: 0.1, lng: 0.01, category: 'waterfalls' },
+          { id: '2', name: 'POI Start', lat: 0, lng: 0.09, category: 'waterfalls' }
+        ],
+        params: { days: 2, vehicle: 'car', pace: 'balanced', startName: 'A', endName: 'B' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      assert.equal(status, 200);
+      assert.equal(body.success, true);
+      const data = body.data as any;
+      assert.equal(data.feasibility.feasible, true);
+      assert.equal(data.days.length, 2);
+      
+      assert.ok(data.days[0].stops.find((s: any) => s.name === 'POI Start'));
+      assert.ok(data.days[1].stops.find((s: any) => s.name === 'POI End'));
+    });
+
+    it('enforces detour limits and excludes must-visit with a warning if infeasible', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 50000, duration: 6000, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 100, durationMinutes: 120, start: { lat: 0, lng: 0 }, end: { lat: 1, lng: 0 }, geometry: { coordinates: [[0,0], [0,1]] } },
+        pois: [{ id: '1', name: 'Huge Detour POI', lat: 0.5, lng: 0, category: 'waterfalls' }],
+        params: { days: 1, vehicle: 'car', pace: 'balanced', mustVisits: [{ id: '1', name: 'Huge Detour POI' }] }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      assert.equal(data.days[0].stops.find((s: any) => s.name.includes('Huge Detour POI')), undefined);
+      assert.ok(data.warnings.find((w: any) => w.title === 'Must-visit excluded'));
+    });
+
+    it('injects car fatigue guidance (approx 3.5 hrs)', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 1000, duration: 120, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 400, durationMinutes: 420, start: { lat: 0, lng: 0 }, end: { lat: 0.1, lng: 0 }, geometry: { coordinates: [[0,0], [0,0.1]] } },
+        pois: [
+          { id: '1', name: 'POI 1', lat: 0.05, lng: 0, category: 'waterfalls' },
+          { id: '2', name: 'POI 2', lat: 0.06, lng: 0, category: 'waterfalls' },
+          { id: '3', name: 'POI 3', lat: 0.07, lng: 0, category: 'waterfalls' },
+          { id: '4', name: 'POI 4', lat: 0.08, lng: 0, category: 'waterfalls' }
+        ],
+        params: { days: 1, vehicle: 'car', pace: 'balanced' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      const breaks = data.days[0].stops.filter((s: any) => s.type === 'break');
+      assert.ok(breaks.length >= 1);
+    });
+
+    it('injects motorcycle fatigue guidance (approx 2 hrs)', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 1000, duration: 120, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 400, durationMinutes: 420, start: { lat: 0, lng: 0 }, end: { lat: 0.1, lng: 0 }, geometry: { coordinates: [[0,0], [0,0.1]] } },
+        pois: [
+          { id: '1', name: 'POI 1', lat: 0.05, lng: 0, category: 'waterfalls' },
+          { id: '2', name: 'POI 2', lat: 0.06, lng: 0, category: 'waterfalls' },
+          { id: '3', name: 'POI 3', lat: 0.07, lng: 0, category: 'waterfalls' },
+          { id: '4', name: 'POI 4', lat: 0.08, lng: 0, category: 'waterfalls' }
+        ],
+        params: { days: 1, vehicle: 'motorcycle', pace: 'balanced' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      const breaks = data.days[0].stops.filter((s: any) => s.type === 'break');
+      assert.ok(breaks.length >= 2);
+    });
+
+    it('dynamically limits attractions on heavy driving days', async () => {
+      global.fetch = async (url: any, init?: any) => {
+        if (url.toString().includes('router.project-osrm.org')) {
+           return { ok: true, json: async () => ({ routes: [{ distance: 1000, duration: 120, geometry: '' }] }) } as Response;
+        }
+        return originalFetch(url, init);
+      };
+
+      const payload = {
+        route: { distanceKm: 400, durationMinutes: 420, start: { lat: 0, lng: 0 }, end: { lat: 0.1, lng: 0 }, geometry: { coordinates: [[0,0], [0,0.1]] } },
+        pois: [
+          { id: '1', name: 'P1', lat: 0.01, lng: 0, category: 'attraction' },
+          { id: '2', name: 'P2', lat: 0.02, lng: 0, category: 'attraction' },
+          { id: '3', name: 'P3', lat: 0.03, lng: 0, category: 'attraction' },
+          { id: '4', name: 'P4', lat: 0.04, lng: 0, category: 'attraction' }
+        ],
+        params: { days: 1, vehicle: 'car', pace: 'balanced' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      const attractions = data.days[0].stops.filter((s: any) => s.type === 'attraction' || s.type === 'food');
+      assert.ok(attractions.length <= 3);
+    });
+
+    it('adds warning if no suitable POIs found', async () => {
+      const payload = {
+        route: { distanceKm: 10, durationMinutes: 10, start: { lat: 0, lng: 0 }, end: { lat: 0.1, lng: 0 }, geometry: { coordinates: [[0,0], [0,0.1]] } },
+        pois: [],
+        params: { days: 1, vehicle: 'car', pace: 'balanced' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      const data = body.data as any;
+      assert.ok(data.warnings.find((w: any) => w.title === 'No suitable POIs'));
+    });
+
+    it('returns unfeasible status for insufficient days', async () => {
+      const payload = {
+        route: { distanceKm: 1500, durationMinutes: 1800, start: { lat: 12.9, lng: 77.5 }, end: { lat: 12.3, lng: 76.6 } },
+        pois: [],
+        params: { days: 1, vehicle: 'car', pace: 'balanced' }
+      };
+      
+      const { status, body } = await post('/api/v1/itinerary', payload);
+      assert.equal(body.data.feasibility.feasible, false);
+      assert.equal(body.data.feasibility.severity, 'critical');
+    });
+
   });
 
   // ── 404 Handling ──────────────────────────────────────

@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import type { FormData } from './PlannerForm';
-import { fetchRoute, fetchPOIs, RouteResponse, POI } from '../services/api';
+import { fetchRoute, fetchPOIs, generateItinerary, RouteResponse, POI, ItineraryResponse } from '../services/api';
 
 const stages = [
   { label: 'Checking trip feasibility', detail: 'Verifying route distances and driving time limits' },
@@ -17,7 +17,7 @@ const stages = [
   { label: 'Building your itinerary', detail: 'Assembling a day-by-day plan with realistic timing' },
 ];
 
-export default function LoadingScreen({ formData, onDone }: { formData: FormData | null; onDone: (route: RouteResponse | null, pois?: POI[]) => void }) {
+export default function LoadingScreen({ formData, onDone }: { formData: FormData | null; onDone: (route: RouteResponse | null, pois?: POI[], itinerary?: ItineraryResponse) => void }) {
   const [activeStage, setActiveStage] = useState(0);
   const [completed, setCompleted] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -66,12 +66,24 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
         );
         
         setTimeout(() => { setActiveStage(4); setCompleted([0, 1, 2, 3]); }, 1400);
+
+        // Stage 5: Generate Itinerary
+        const itinerary = await generateItinerary(route, pois, {
+          days: Number(formData.days),
+          vehicle: formData.vehicle,
+          pace: formData.pace,
+          interests: formData.interests,
+          mustVisits: formData.wishlist || [],
+          startName: formData.start.name,
+          endName: formData.destination.name
+        });
+
         setTimeout(() => { setCompleted([0, 1, 2, 3, 4]); }, 1800);
         
-        setTimeout(() => onDone(route, pois), 2200);
+        setTimeout(() => onDone(route, pois, itinerary), 2200);
 
       } catch (err: any) {
-        setError(err.message || 'Failed to calculate route or discover POIs');
+        setError(err.message || 'Failed to calculate route, POIs, or itinerary');
       }
     }
 

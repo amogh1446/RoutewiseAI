@@ -76,6 +76,7 @@ export default function TripOverview({
   formData,
   routeData,
   pois = [],
+  itineraryData,
   onHome,
   onPlanNew,
   onDayClick,
@@ -85,6 +86,7 @@ export default function TripOverview({
   formData: FormData | null;
   routeData?: RouteResponse | null;
   pois?: import('../services/api').POI[];
+  itineraryData?: import('../services/api').ItineraryResponse | null;
   onHome: () => void;
   onPlanNew: () => void;
   onDayClick: (day: number) => void;
@@ -213,9 +215,9 @@ export default function TripOverview({
                 }}
               >
                 {t === 'places' ? 'Discovered Places' : t}
-                {t === 'warnings' && (
+                {t === 'warnings' && (itineraryData?.warnings.length || 0) > 0 && (
                   <span style={{ marginLeft: 6, background: '#FDF3E3', color: '#C17B2E', borderRadius: 100, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
-                    3
+                    {itineraryData?.warnings.length}
                   </span>
                 )}
                 {t === 'places' && pois.length > 0 && (
@@ -229,9 +231,13 @@ export default function TripOverview({
 
           {activeTab === 'itinerary' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {tripDays.slice(0, days).map(d => (
-                <DayCard key={d.day} day={d} onClick={() => onDayClick(d.day)} />
-              ))}
+              {itineraryData?.feasibility.severity === 'critical' ? (
+                <Warning severity="important" title="Trip Unfeasible" description={itineraryData.feasibility.reasons[0]} />
+              ) : (
+                (itineraryData?.days || tripDays.slice(0, days)).map(d => (
+                  <DayCard key={d.day} day={d as any} onClick={() => onDayClick(d.day)} />
+                ))
+              )}
             </div>
           )}
 
@@ -259,31 +265,20 @@ export default function TripOverview({
 
           {activeTab === 'warnings' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Warning
-                severity="important"
-                title="Day 4: Long driving day (5h 10m)"
-                description="Nagarhole to Ooty covers 180 km with significant mountain driving from Gudalur onwards. Consider an early start (before 8 AM) to avoid afternoon traffic at the Ooty ghat."
-              />
-              <Warning
-                severity="advisory"
-                title="Day 2: Talacauvery access may be restricted"
-                description="Talacauvery temple area sometimes has vehicle restrictions during peak pilgrimage seasons. Check local conditions before visiting."
-              />
-              <Warning
-                severity="advisory"
-                title="Day 5: Return journey is 295 km"
-                description="The longest single-day drive of the trip. Factor in time if returning via Bandipur — speed limits are strictly enforced through the national park."
-              />
-              <Warning
-                severity="info"
-                title="Nagarhole Safari: Advance booking may be required"
-                description="Nagarhole National Park safari slots may need advance booking through the forest department portal. Verify current requirements before your trip. Self-drive is not permitted inside the park."
-              />
-              <Warning
-                severity="info"
-                title="Fuel: Plan ahead between Nagarhole and Ooty"
-                description="There are limited fuel stations on the Nagarhole–Gudalur stretch. Fill up at Nagarhole before departure."
-              />
+              {itineraryData?.warnings.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', background: '#FFFFFF', borderRadius: 12, border: '1px solid #DDD7CC' }}>
+                  <p style={{ color: '#6B6358', fontSize: 14 }}>No warnings or advisories for this trip.</p>
+                </div>
+              ) : (
+                (itineraryData?.warnings || []).map((w, i) => (
+                  <Warning
+                    key={i}
+                    severity={w.severity}
+                    title={w.title}
+                    description={w.description}
+                  />
+                ))
+              )}
             </div>
           )}
         </div>
@@ -296,19 +291,19 @@ export default function TripOverview({
               Route Summary
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {tripDays.slice(0, days).map((d, i) => (
+              {(itineraryData?.days || tripDays.slice(0, days)).map((d, i) => (
                 <div
                   key={d.day}
-                  style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: i < Math.min(days, tripDays.length) - 1 ? 16 : 0 }}
+                  style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: i < Math.min(days, (itineraryData?.days || tripDays).length) - 1 ? 16 : 0 }}
                 >
-                  {i < Math.min(days, tripDays.length) - 1 && (
+                  {i < Math.min(days, (itineraryData?.days || tripDays).length) - 1 && (
                     <div style={{ position: 'absolute', left: 9, top: 22, width: 2, height: 'calc(100% - 8px)', background: '#EDE8DF' }} />
                   )}
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: i === 0 ? '#2D5A3D' : i === Math.min(days, tripDays.length) - 1 ? '#C17B2E' : '#EDE8DF', border: '2px solid', borderColor: i === 0 ? '#2D5A3D' : i === Math.min(days, tripDays.length) - 1 ? '#C17B2E' : '#DDD7CC', flexShrink: 0, zIndex: 1 }} />
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: i === 0 ? '#2D5A3D' : i === Math.min(days, (itineraryData?.days || tripDays).length) - 1 ? '#C17B2E' : '#EDE8DF', border: '2px solid', borderColor: i === 0 ? '#2D5A3D' : i === Math.min(days, (itineraryData?.days || tripDays).length) - 1 ? '#C17B2E' : '#DDD7CC', flexShrink: 0, zIndex: 1 }} />
                   <div style={{ paddingBottom: 4 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#6B6358', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Day {d.day}</div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1A1714', marginTop: 1 }}>{d.from} → {d.to.split(' (')[0]}</div>
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6B6358', marginTop: 2 }}>{d.km} km · {d.driveTime}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1A1714', margin: '2px 0' }}>{d.from} → {d.to.split(' (')[0]}</div>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6B6358' }}>{d.km} km · {d.driveTime}</div>
                   </div>
                 </div>
               ))}

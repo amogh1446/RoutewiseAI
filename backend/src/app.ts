@@ -13,6 +13,7 @@ import { statesRouter } from './api/states.js';
 import { geocodeRouter } from './api/geocode.js';
 import { routeRouter } from './api/route.js';
 import { poisRouter } from './api/pois.js';
+import { itineraryRouter } from './api/itinerary.js';
 import { requestLogger, notFoundHandler, globalErrorHandler } from './middleware.js';
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/v1/states', statesRouter);
 app.use('/api/v1/geocode', geocodeRouter);
 app.use('/api/v1/route', routeRouter);
 app.use('/api/v1/pois', poisRouter);
+app.use('/api/v1/itinerary', itineraryRouter);
 
 // ── Error Handling ──────────────────────────────────────
 app.use(notFoundHandler);

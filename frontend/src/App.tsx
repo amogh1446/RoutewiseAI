@@ -30,6 +30,7 @@ export default function App() {
   const [formData, setFormData] = useState<FormData | null>(null);
   const [routeData, setRouteData] = useState<RouteResponse | null>(null);
   const [pois, setPois] = useState<import('./services/api').POI[]>([]);
+  const [itineraryData, setItineraryData] = useState<import('./services/api').ItineraryResponse | null>(null);
   const [selectedDay, setSelectedDay] = useState(1);
 
   const navigate = (s: Screen) => {
@@ -39,8 +40,6 @@ export default function App() {
 
   const goHome = () => navigate('landing');
   const planNew = () => navigate('planner');
-
-  const totalDays = formData?.days ? Math.min(Number(formData.days), 5) : 5;
 
   return (
     <div style={{ fontFamily: 'Outfit, system-ui, sans-serif', minHeight: '100vh', background: '#F7F4EF' }}>
@@ -60,9 +59,10 @@ export default function App() {
       {screen === 'loading' && (
         <LoadingScreen
           formData={formData}
-          onDone={(route, discoveredPois) => {
+          onDone={(route, discoveredPois, generatedItinerary) => {
             setRouteData(route);
             if (discoveredPois) setPois(discoveredPois);
+            if (generatedItinerary) setItineraryData(generatedItinerary);
             navigate('overview');
           }}
         />
@@ -73,6 +73,7 @@ export default function App() {
           formData={formData}
           routeData={routeData}
           pois={pois}
+          itineraryData={itineraryData}
           onHome={goHome}
           onPlanNew={planNew}
           onDayClick={(d) => { setSelectedDay(d); navigate('day-detail'); }}
@@ -84,13 +85,14 @@ export default function App() {
       {screen === 'day-detail' && (
         <DayDetail
           day={selectedDay}
-          totalDays={totalDays}
+          totalDays={itineraryData?.days.length || Number(formData?.days || 1)}
           formData={formData}
+          itineraryData={itineraryData}
           onBack={() => navigate('overview')}
           onHome={goHome}
           onPlanNew={planNew}
-          onNext={() => { setSelectedDay(d => Math.min(d + 1, totalDays)); navigate('day-detail'); }}
-          onPrev={() => { setSelectedDay(d => Math.max(d - 1, 1)); navigate('day-detail'); }}
+          onNext={() => setSelectedDay(d => d + 1)}
+          onPrev={() => setSelectedDay(d => d - 1)}
         />
       )}
 
