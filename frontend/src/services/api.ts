@@ -6,7 +6,7 @@
 // empty/pending states rather than fake data.
 // =============================================================
 
-const API_BASE = 'http://localhost:3000/api/v1';
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 // ── Types ──────────────────────────────────────────────────
 

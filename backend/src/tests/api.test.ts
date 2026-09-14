@@ -409,7 +409,7 @@ describe('RouteWise API', async () => {
       }
     });
 
-    it('returns 500 when Overpass fails', async () => {
+    it('returns empty list gracefully when Overpass fails', async () => {
       const originalFetch = global.fetch;
       try {
         global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
@@ -430,8 +430,9 @@ describe('RouteWise API', async () => {
         };
 
         const { status, body } = await get('/api/v1/pois?startLat=12.9&startLng=77.5&endLat=12.3&endLng=76.6');
-        assert.equal(status, 500);
-        assert.equal(body.success, false);
+        assert.equal(status, 200);
+        assert.equal(body.success, true);
+        assert.deepEqual(body.data, []);
       } finally {
         global.fetch = originalFetch;
       }

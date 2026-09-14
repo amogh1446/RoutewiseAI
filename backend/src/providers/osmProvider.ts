@@ -208,33 +208,45 @@ export class OSMProvider implements GeoProvider {
       );
       out center 50;`; // Limit to 50 results
 
-    const url = 'https://overpass-api.de/api/interpreter';
+    const url = process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter';
     
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 
-        'User-Agent': this.userAgent,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: `data=${encodeURIComponent(query)}`
-    });
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-    if (!res.ok) {
-      throw new Error(`Overpass API error: ${res.status} ${res.statusText}`);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'User-Agent': this.userAgent,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        console.warn(`[WARN] Overpass API failed (${res.status}). Returning empty POI set.`);
+        return [];
+      }
+
+      const data = await res.json() as any;
+      const elements = data.elements || [];
+
+      return elements
+        .filter((el: any) => el.tags && el.tags.name)
+        .map((el: any) => ({
+          place_id: `osm-node-${el.id}`,
+          name: el.tags.name,
+          lat: el.lat,
+          lng: el.lon,
+          category: (req.categories[0] || 'attraction') as any, // Simple fallback for MVP
+          address: el.tags['addr:street'] || el.tags['addr:city'] || null
+        }));
+    } catch (err: any) {
+      console.warn(`[WARN] Overpass API request failed/timed out. Returning empty POI set. Error:`, err.message);
+      return [];
     }
-
-    const data = await res.json() as any;
-    const elements = data.elements || [];
-
-    return elements
-      .filter((el: any) => el.tags && el.tags.name)
-      .map((el: any) => ({
-        place_id: `osm-node-${el.id}`,
-        name: el.tags.name,
-        lat: el.lat,
-        lng: el.lon,
-        category: (req.categories[0] || 'attraction') as any, // Simple fallback for MVP
-        address: el.tags['addr:street'] || el.tags['addr:city'] || null
-      }));
   }
 }
