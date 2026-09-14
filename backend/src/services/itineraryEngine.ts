@@ -376,6 +376,16 @@ export async function generateItinerary(
       }
     }
 
+    const uniqueDayWarnings: TripWarning[] = [];
+    const seenWarnings = new Set<string>();
+    for (const w of dayWarnings) {
+      const key = `${w.title}|${w.description}`;
+      if (!seenWarnings.has(key)) {
+        seenWarnings.add(key);
+        uniqueDayWarnings.push(w);
+      }
+    }
+
     itineraryDays.push({
       day,
       dateStr,
@@ -385,7 +395,7 @@ export async function generateItinerary(
       km: dayKm,
       driveTime: formatDuration(dayMins),
       stops,
-      warnings: dayWarnings,
+      warnings: uniqueDayWarnings,
       highlights: highlights.slice(0, 3)
     });
   }

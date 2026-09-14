@@ -18,60 +18,6 @@ import InteractiveMap, { MarkerData } from '../components/InteractiveMap';
 import type { FormData } from './PlannerForm';
 import type { RouteResponse } from '../services/api';
 
-// ── Sample trip data ─────────────────────────────────────────
-// This is demonstration data for the MVP UI.
-// In production this will be replaced by the backend itinerary
-// API response. No real coordinates or distances are invented —
-// the values shown are representative of a known Indian route.
-
-const tripDays = [
-  {
-    day: 1,
-    from: 'Bengaluru',
-    to: 'Mysuru',
-    km: 145,
-    driveTime: '3h 20m',
-    highlights: ['Brindavan Gardens', 'Mysore Palace', 'Devaraja Market'],
-    warnings: [] as string[],
-  },
-  {
-    day: 2,
-    from: 'Mysuru',
-    to: 'Coorg (Madikeri)',
-    km: 118,
-    driveTime: '3h 05m',
-    highlights: ['Abbey Falls', "Raja's Seat", 'Talacauvery'],
-    warnings: ['advisory'],
-  },
-  {
-    day: 3,
-    from: 'Coorg',
-    to: 'Nagarhole',
-    km: 80,
-    driveTime: '2h 00m',
-    highlights: ['Nagarhole National Park', 'Kabini backwaters'],
-    warnings: ['info'],
-  },
-  {
-    day: 4,
-    from: 'Nagarhole',
-    to: 'Ooty',
-    km: 180,
-    driveTime: '5h 10m',
-    highlights: ['Botanical Garden', 'Emerald Lake'],
-    warnings: ['important'],
-  },
-  {
-    day: 5,
-    from: 'Ooty',
-    to: 'Bengaluru',
-    km: 295,
-    driveTime: '6h 30m',
-    highlights: ['Bandipur National Park', 'Kabini River'],
-    warnings: ['advisory'],
-  },
-];
-
 export default function TripOverview({
   formData,
   routeData,
@@ -95,24 +41,46 @@ export default function TripOverview({
 }) {
   const [activeTab, setActiveTab] = useState<'itinerary' | 'warnings' | 'places'>('itinerary');
 
-  const from = formData?.start?.name ?? 'Bengaluru';
-  const to = formData?.destination?.name ?? 'Ooty';
-  const days = formData?.days ? Number(formData.days) : 5;
+  if (!itineraryData) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#F7F4EF', padding: 40, textAlign: 'center' }}>
+        <h2 style={{ fontFamily: 'Fraunces, Georgia, serif', color: '#1A1714' }}>Trip details could not be loaded</h2>
+        <p style={{ color: '#6B6358', marginBottom: 24 }}>Please try replanning your route.</p>
+        <button onClick={onPlanNew} style={{ background: '#2D5A3D', color: '#FFF', padding: '10px 20px', borderRadius: 8, border: 'none', cursor: 'pointer' }}>Plan New Trip</button>
+      </div>
+    );
+  }
+
+  const from = formData?.start?.name ?? 'Origin';
+  const to = formData?.destination?.name ?? 'Destination';
+  const days = formData?.days ? Number(formData.days) : 1;
   const vehicle = formData?.vehicle === 'motorcycle' ? '🏍️ Motorcycle' : '🚗 Car';
 
   const totalKm = routeData ? routeData.distanceKm : 0;
   const totalDuration = routeData ? `${Math.floor(routeData.durationMinutes / 60)}h ${routeData.durationMinutes % 60}m` : '0h 0m';
 
+  const mustVisits = formData?.wishlist || [];
+  const discoveredMarkers = pois.filter(p => !mustVisits.some(mv => mv.place_id === p.id)).map(p => ({
+    id: p.id,
+    type: 'stop' as const,
+    label: p.name,
+    lat: p.lat,
+    lng: p.lng
+  }));
+
+  const mustVisitMarkers = mustVisits.map(mv => ({
+    id: mv.place_id,
+    type: 'stop' as const,
+    label: mv.name,
+    lat: mv.lat,
+    lng: mv.lng
+  }));
+
   const mapMarkers: MarkerData[] = routeData ? [
     { id: 'start', type: 'start', label: from, lat: routeData.start.lat, lng: routeData.start.lng },
     { id: 'end', type: 'destination', label: to, lat: routeData.end.lat, lng: routeData.end.lng },
-    ...pois.map(p => ({
-      id: p.id,
-      type: 'stop' as const,
-      label: p.name,
-      lat: p.lat,
-      lng: p.lng
-    }))
+    ...mustVisitMarkers,
+    ...discoveredMarkers
   ] : [];
 
   return (
@@ -234,7 +202,7 @@ export default function TripOverview({
               {itineraryData?.feasibility.severity === 'critical' ? (
                 <Warning severity="important" title="Trip Unfeasible" description={itineraryData.feasibility.reasons[0]} />
               ) : (
-                (itineraryData?.days || tripDays.slice(0, days)).map(d => (
+                itineraryData?.days.map(d => (
                   <DayCard key={d.day} day={d as any} onClick={() => onDayClick(d.day)} />
                 ))
               )}
@@ -292,15 +260,15 @@ export default function TripOverview({
               Route Summary
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {(itineraryData?.days || tripDays.slice(0, days)).map((d, i) => (
+              {itineraryData?.days.map((d, i) => (
                 <div
                   key={d.day}
-                  style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: i < Math.min(days, (itineraryData?.days || tripDays).length) - 1 ? 16 : 0 }}
+                  style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: i < Math.min(days, itineraryData.days.length) - 1 ? 16 : 0 }}
                 >
-                  {i < Math.min(days, (itineraryData?.days || tripDays).length) - 1 && (
+                  {i < Math.min(days, itineraryData.days.length) - 1 && (
                     <div style={{ position: 'absolute', left: 9, top: 22, width: 2, height: 'calc(100% - 8px)', background: '#EDE8DF' }} />
                   )}
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: i === 0 ? '#2D5A3D' : i === Math.min(days, (itineraryData?.days || tripDays).length) - 1 ? '#C17B2E' : '#EDE8DF', border: '2px solid', borderColor: i === 0 ? '#2D5A3D' : i === Math.min(days, (itineraryData?.days || tripDays).length) - 1 ? '#C17B2E' : '#DDD7CC', flexShrink: 0, zIndex: 1 }} />
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: i === 0 ? '#2D5A3D' : i === Math.min(days, itineraryData.days.length) - 1 ? '#C17B2E' : '#EDE8DF', border: '2px solid', borderColor: i === 0 ? '#2D5A3D' : i === Math.min(days, itineraryData.days.length) - 1 ? '#C17B2E' : '#DDD7CC', flexShrink: 0, zIndex: 1 }} />
                   <div style={{ paddingBottom: 4 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#6B6358', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Day {d.day}</div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#1A1714', margin: '2px 0' }}>{d.from} → {d.to.split(' (')[0]}</div>
