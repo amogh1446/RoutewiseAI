@@ -5,8 +5,9 @@
 // Shows planning stages sequentially to set user expectations.
 // =============================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { FormData } from './PlannerForm';
+import { fetchRoute, RouteResponse } from '../services/api';
 
 const stages = [
   { label: 'Checking trip feasibility', detail: 'Verifying route distances and driving time limits' },
@@ -16,31 +17,57 @@ const stages = [
   { label: 'Building your itinerary', detail: 'Assembling a day-by-day plan with realistic timing' },
 ];
 
-export default function LoadingScreen({ formData, onDone }: { formData: FormData | null; onDone: () => void }) {
+export default function LoadingScreen({ formData, onDone }: { formData: FormData | null; onDone: (route: RouteResponse | null) => void }) {
   const [activeStage, setActiveStage] = useState(0);
   const [completed, setCompleted] = useState<number[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  
+  const fetchedRef = useRef(false);
 
   const from = formData?.start?.name ?? 'Origin';
   const to = formData?.destination?.name ?? 'Destination';
 
   useEffect(() => {
-    let i = 0;
-    const tick = () => {
-      if (i < stages.length) {
-        setActiveStage(i);
-        i++;
-        setTimeout(() => {
-          setCompleted(c => [...c, i - 1]);
-          if (i < stages.length) {
-            setTimeout(tick, 300);
-          } else {
-            setTimeout(onDone, 600);
-          }
-        }, 1100);
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
+    async function load() {
+      if (!formData?.start?.lat || !formData?.destination?.lat) {
+        setTimeout(() => onDone(null), 1500);
+        return;
       }
-    };
-    tick();
-  }, [onDone]);
+
+      try {
+        // Stage 1
+        setActiveStage(0);
+        setCompleted([]);
+
+        // Stage 2: Fetching route
+        setTimeout(() => { setActiveStage(1); setCompleted([0]); }, 400);
+        
+        const route = await fetchRoute(
+          formData.start.lat,
+          formData.start.lng,
+          formData.destination.lat,
+          formData.destination.lng,
+          formData.vehicle
+        );
+
+        // Stage 3-5 animation
+        setTimeout(() => { setActiveStage(2); setCompleted([0, 1]); }, 800);
+        setTimeout(() => { setActiveStage(3); setCompleted([0, 1, 2]); }, 1200);
+        setTimeout(() => { setActiveStage(4); setCompleted([0, 1, 2, 3]); }, 1600);
+        setTimeout(() => { setCompleted([0, 1, 2, 3, 4]); }, 2000);
+        
+        setTimeout(() => onDone(route), 2400);
+
+      } catch (err: any) {
+        setError(err.message || 'Failed to calculate route');
+      }
+    }
+
+    load();
+  }, [formData, onDone]);
 
   return (
     <div
@@ -65,34 +92,49 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
       </div>
 
       <h2 style={{ fontFamily: 'Fraunces, Georgia, serif', fontSize: 30, fontWeight: 700, color: '#1A1714', margin: '0 0 8px', letterSpacing: '-0.02em', textAlign: 'center' }}>
-        Planning your route
+        {error ? 'Failed to plan route' : 'Planning your route'}
       </h2>
       <p style={{ fontSize: 15, color: '#6B6358', margin: '0 0 8px', textAlign: 'center' }}>
         {from} → {to}
       </p>
-      <p style={{ fontSize: 14, color: '#6B6358', margin: '0 0 48px', textAlign: 'center' }}>
-        This usually takes a few seconds
-      </p>
+      
+      {error ? (
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <p style={{ color: '#C44B3A', background: '#FDF0EF', padding: '12px 20px', borderRadius: 8, fontSize: 14 }}>
+            {error}
+          </p>
+          <button 
+            onClick={() => onDone(null)}
+            style={{ marginTop: 16, background: '#2D5A3D', color: '#FFF', border: 'none', padding: '10px 24px', borderRadius: 8, cursor: 'pointer' }}
+          >
+            Continue anyway
+          </button>
+        </div>
+      ) : (
+        <>
+          <p style={{ fontSize: 14, color: '#6B6358', margin: '0 0 48px', textAlign: 'center' }}>
+            This usually takes a few seconds
+          </p>
 
-      {/* Stages */}
-      <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {stages.map((stage, idx) => {
-          const isDone = completed.includes(idx);
-          const isActive = activeStage === idx && !isDone;
-          const isPending = idx > activeStage;
+          {/* Stages */}
+          <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {stages.map((stage, idx) => {
+              const isDone = completed.includes(idx);
+              const isActive = activeStage === idx && !isDone;
+              const isPending = idx > activeStage;
 
-          return (
-            <div
-              key={stage.label}
-              style={{
-                display: 'flex',
-                gap: 16,
-                opacity: isPending ? 0.35 : 1,
-                transition: 'opacity 0.3s',
-                position: 'relative',
-                paddingBottom: idx < stages.length - 1 ? 24 : 0,
-              }}
-            >
+              return (
+                <div
+                  key={stage.label}
+                  style={{
+                    display: 'flex',
+                    gap: 16,
+                    opacity: isPending ? 0.35 : 1,
+                    transition: 'opacity 0.3s',
+                    position: 'relative',
+                    paddingBottom: idx < stages.length - 1 ? 24 : 0,
+                  }}
+                >
               {/* Connector line */}
               {idx < stages.length - 1 && (
                 <div
@@ -158,6 +200,8 @@ export default function LoadingScreen({ formData, onDone }: { formData: FormData
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }

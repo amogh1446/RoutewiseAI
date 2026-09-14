@@ -11,6 +11,7 @@ import cors from 'cors';
 import { healthRouter } from './api/health.js';
 import { statesRouter } from './api/states.js';
 import { geocodeRouter } from './api/geocode.js';
+import { routeRouter } from './api/route.js';
 import { requestLogger, notFoundHandler, globalErrorHandler } from './middleware.js';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use(requestLogger);
 app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/states', statesRouter);
 app.use('/api/v1/geocode', geocodeRouter);
+app.use('/api/v1/route', routeRouter);
 
 // ── Error Handling ──────────────────────────────────────
 app.use(notFoundHandler);

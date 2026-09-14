@@ -14,8 +14,9 @@
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import Warning from '../components/Warning';
-import InteractiveMap from '../components/InteractiveMap';
+import InteractiveMap, { MarkerData } from '../components/InteractiveMap';
 import type { FormData } from './PlannerForm';
+import type { RouteResponse } from '../services/api';
 
 // ── Sample trip data ─────────────────────────────────────────
 // This is demonstration data for the MVP UI.
@@ -73,6 +74,7 @@ const tripDays = [
 
 export default function TripOverview({
   formData,
+  routeData,
   onHome,
   onPlanNew,
   onDayClick,
@@ -80,6 +82,7 @@ export default function TripOverview({
   onChecklist,
 }: {
   formData: FormData | null;
+  routeData?: RouteResponse | null;
   onHome: () => void;
   onPlanNew: () => void;
   onDayClick: (day: number) => void;
@@ -93,7 +96,13 @@ export default function TripOverview({
   const days = formData?.days ? Number(formData.days) : 5;
   const vehicle = formData?.vehicle === 'motorcycle' ? '🏍️ Motorcycle' : '🚗 Car';
 
-  const totalKm = tripDays.slice(0, days).reduce((sum, d) => sum + d.km, 0);
+  const totalKm = routeData ? routeData.distanceKm : 0;
+  const totalDuration = routeData ? `${Math.floor(routeData.durationMinutes / 60)}h ${routeData.durationMinutes % 60}m` : '0h 0m';
+
+  const mapMarkers: MarkerData[] = routeData ? [
+    { id: 'start', type: 'start', label: from, lat: routeData.start.lat, lng: routeData.start.lng },
+    { id: 'end', type: 'destination', label: to, lat: routeData.end.lat, lng: routeData.end.lng }
+  ] : [];
 
   return (
     <div style={{ minHeight: '100vh', background: '#F7F4EF' }}>
@@ -135,6 +144,7 @@ export default function TripOverview({
           <div style={{ display: 'flex', gap: 28 }}>
             {[
               { label: 'Total Distance', value: `~${totalKm} km` },
+              { label: 'Drive Time', value: totalDuration },
               { label: 'Days', value: `${days} days` },
               { label: 'Vehicle', value: vehicle },
             ].map(s => (
@@ -162,7 +172,11 @@ export default function TripOverview({
               height: 340,
             }}
           >
-            <InteractiveMap isLoading={false} />
+            <InteractiveMap 
+              isLoading={false} 
+              geojsonStr={routeData ? JSON.stringify(routeData.geometry) : undefined}
+              markers={mapMarkers}
+            />
             <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 100 }}>
               <div style={{ background: '#F7F4EF', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#6B6358', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
                 Map · OpenStreetMap

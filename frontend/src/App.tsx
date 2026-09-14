@@ -14,6 +14,7 @@ import DayDetail from './screens/DayDetail';
 import TripAdjust from './screens/TripAdjust';
 import PreTripChecklist from './screens/PreTripChecklist';
 import type { FormData } from './screens/PlannerForm';
+import type { RouteResponse } from './services/api';
 
 export type Screen =
   | 'landing'
@@ -27,6 +28,7 @@ export type Screen =
 export default function App() {
   const [screen, setScreen] = useState<Screen>('landing');
   const [formData, setFormData] = useState<FormData | null>(null);
+  const [routeData, setRouteData] = useState<RouteResponse | null>(null);
   const [selectedDay, setSelectedDay] = useState(1);
 
   const navigate = (s: Screen) => {
@@ -57,13 +59,17 @@ export default function App() {
       {screen === 'loading' && (
         <LoadingScreen
           formData={formData}
-          onDone={() => navigate('overview')}
+          onDone={(route) => {
+            setRouteData(route);
+            navigate('overview');
+          }}
         />
       )}
 
       {screen === 'overview' && (
         <TripOverview
           formData={formData}
+          routeData={routeData}
           onHome={goHome}
           onPlanNew={planNew}
           onDayClick={(d) => { setSelectedDay(d); navigate('day-detail'); }}

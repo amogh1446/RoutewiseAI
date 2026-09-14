@@ -221,6 +221,83 @@ describe('RouteWise API', async () => {
     });
   });
 
+  // ── Routing ───────────────────────────────────────────
+
+  describe('GET /api/v1/route', () => {
+    it('returns 400 for missing coordinates', async () => {
+      const { status, body } = await get('/api/v1/route?startLat=12.9');
+      assert.equal(status, 400);
+      assert.equal(body.success, false);
+      const error = body.error as Record<string, unknown>;
+      assert.equal(error.code, 'INVALID_QUERY');
+    });
+
+    it('returns 400 for invalid coordinate ranges', async () => {
+      const { status, body } = await get('/api/v1/route?startLat=100&startLng=77.5&endLat=13&endLng=77.6');
+      assert.equal(status, 400);
+      assert.equal(body.success, false);
+    });
+
+    it('returns results for valid route with mocked fetch', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          if (url.toString().includes('router.project-osrm.org')) {
+            return {
+              ok: true,
+              json: async () => ({
+                code: 'Ok',
+                routes: [
+                  {
+                    distance: 145000,
+                    duration: 12000,
+                    geometry: {
+                      type: 'LineString',
+                      coordinates: [[77.5, 12.9], [76.6, 12.3]]
+                    }
+                  }
+                ]
+              })
+            } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/route?startLat=12.9&startLng=77.5&endLat=12.3&endLng=76.6');
+        assert.equal(status, 200);
+        assert.equal(body.success, true);
+        const data = body.data as Record<string, unknown>;
+        assert.equal(data.distanceKm, 145);
+        assert.equal(data.durationMinutes, 200);
+        assert.ok(data.geometry);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('returns 500 when OSRM fails', async () => {
+      const originalFetch = global.fetch;
+      try {
+        global.fetch = async (url: string | URL | globalThis.Request, init?: RequestInit) => {
+          if (url.toString().includes('router.project-osrm.org')) {
+            return {
+              ok: false,
+              status: 503,
+              statusText: 'Service Unavailable'
+            } as Response;
+          }
+          return originalFetch(url, init);
+        };
+
+        const { status, body } = await get('/api/v1/route?startLat=12.9&startLng=77.5&endLat=12.3&endLng=76.6');
+        assert.equal(status, 500);
+        assert.equal(body.success, false);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
   // ── 404 Handling ──────────────────────────────────────
 
   describe('404 Handling', () => {

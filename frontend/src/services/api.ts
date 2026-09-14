@@ -80,3 +80,17 @@ export interface GeocodeResult {
 export async function geocodeQuery(query: string): Promise<GeocodeResult[]> {
   return apiFetch<GeocodeResult[]>(`/geocode?q=${encodeURIComponent(query)}`);
 }
+
+// ── Routing ────────────────────────────────────────────────
+
+export interface RouteResponse {
+  distanceKm: number;
+  durationMinutes: number;
+  geometry: any; // GeoJSON LineString
+  start: { lat: number; lng: number };
+  end: { lat: number; lng: number };
+}
+
+export async function fetchRoute(startLat: number, startLng: number, endLat: number, endLng: number, vehicle: string = 'car'): Promise<RouteResponse> {
+  return apiFetch<RouteResponse>(`/route?startLat=${startLat}&startLng=${startLng}&endLat=${endLat}&endLng=${endLng}&vehicle=${vehicle}`);
+}
